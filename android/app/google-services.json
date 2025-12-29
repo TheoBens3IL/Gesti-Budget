@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "148152873954",
+    "project_id": "gesti-budget-theob",
+    "storage_bucket": "gesti-budget-theob.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:148152873954:android:4df43b904bc38dfc22ffbb",
+        "android_client_info": {
+          "package_name": "com.example.gesti_budget"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClu4VTm232wJgITqd4iEYOh9OVt8KaHQg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
