@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'main.dart';
 import 'providers/app_state.dart';
 import 'utils/dialogs.dart';
+import 'ajouter_transaction.dart';
+import 'models/transaction.dart';
 
 class ListeTransactionsPage extends StatefulWidget {
   final String compteInitial;
@@ -45,6 +47,7 @@ class ListeTransactionsPageState extends State<ListeTransactionsPage> {
             });
           },
           onEditSolde: () => CompteDialogs.modifierSolde(context, compteSelectionne),
+          onConvertCurrency: () => CompteDialogs.convertirDevise(context, solde),
           onAddCompte: () => CompteDialogs.ajouterCompte(context, (nomCompte) {
             setState(() {
               compteSelectionne = nomCompte;
@@ -107,6 +110,30 @@ class ListeTransactionsPageState extends State<ListeTransactionsPage> {
                               color: Colors.white.withValues(alpha: 0.1),
                               margin: EdgeInsets.symmetric(vertical: 4),
                               child: ListTile(
+                                onTap: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => AjouterTransactionPage(
+                                        transactionToEdit: transaction,
+                                      ),
+                                    ),
+                                  );
+                                  if (result != null && mounted) {
+                                    // Vérifier si c'est une modification ou un ajout
+                                    if (result is Map && result["action"] == "modify") {
+                                      // Modification d'une transaction
+                                      final nouvelleTransaction = Transaction.fromMap(result["new"]);
+                                      Provider.of<AppState>(context, listen: false)
+                                          .modifierTransaction(transaction, nouvelleTransaction);
+                                    } else {
+                                      // Ajout d'une nouvelle transaction (ne devrait pas arriver ici)
+                                      final transactionModifiee = Transaction.fromMap(result);
+                                      Provider.of<AppState>(context, listen: false)
+                                          .ajouterTransaction(transactionModifiee);
+                                    }
+                                  }
+                                },
                                 leading: Icon(
                                   transaction.type == "Dépense" 
                                       ? Icons.arrow_downward 
@@ -133,14 +160,61 @@ class ListeTransactionsPageState extends State<ListeTransactionsPage> {
                                       ),
                                   ],
                                 ),
-                                trailing: Text(
-                                  "${transaction.type == "Dépense" ? "-" : "+"}€${transaction.amount.toStringAsFixed(2)}",
-                                  style: TextStyle(
-                                    color: transaction.type == "Dépense" 
-                                        ? Colors.red 
-                                        : Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      "${transaction.type == "Dépense" ? "-" : "+"}€${transaction.amount.toStringAsFixed(2)}",
+                                      style: TextStyle(
+                                        color: transaction.type == "Dépense" 
+                                            ? Colors.red 
+                                            : Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    IconButton(
+                                      icon: Icon(Icons.delete, color: Colors.red.withOpacity(0.7), size: 20),
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (BuildContext dialogContext) {
+                                            return AlertDialog(
+                                              backgroundColor: Color(0xFF1A0F2E),
+                                              title: Text(
+                                                "Supprimer la transaction",
+                                                style: TextStyle(color: Colors.white),
+                                              ),
+                                              content: Text(
+                                                "Êtes-vous sûr de vouloir supprimer cette transaction ?",
+                                                style: TextStyle(color: Colors.white70),
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(dialogContext),
+                                                  child: Text("Annuler", style: TextStyle(color: Colors.white70)),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Provider.of<AppState>(context, listen: false)
+                                                        .supprimerTransaction(transaction.id);
+                                                    Navigator.pop(dialogContext);
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text("Transaction supprimée"),
+                                                        backgroundColor: Colors.green,
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: Text("Supprimer", style: TextStyle(color: Colors.red)),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             );

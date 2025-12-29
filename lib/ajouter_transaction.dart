@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_state.dart';
+import 'models/transaction.dart' as app_models;
 
 class AjouterTransactionPage extends StatefulWidget {
-  const AjouterTransactionPage({super.key});
+  final app_models.Transaction? transactionToEdit;
+  final String? compteInitial;
+  
+  const AjouterTransactionPage({super.key, this.transactionToEdit, this.compteInitial});
 
   @override
   State<AjouterTransactionPage> createState() => _AjouterTransactionPageState();
@@ -15,6 +19,7 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
   String? categorieSelectionnee;
   TextEditingController montantController = TextEditingController();
   TextEditingController commentaireController = TextEditingController();
+  DateTime selectedDate = DateTime.now();
 
   final List<String> categoriesDepense = [
     "Alimentation",
@@ -36,6 +41,24 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
     "Autre",
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // Si on édite une transaction, pré-remplir les champs
+    if (widget.transactionToEdit != null) {
+      final transaction = widget.transactionToEdit!;
+      typeTransaction = transaction.type;
+      compteSelectionne = transaction.compte;
+      categorieSelectionnee = transaction.categorie;
+      montantController.text = transaction.amount.toStringAsFixed(2);
+      commentaireController.text = transaction.commentaire;
+      selectedDate = transaction.date;
+    } else if (widget.compteInitial != null) {
+      // Si un compte initial est fourni, le pré-sélectionner
+      compteSelectionne = widget.compteInitial;
+    }
+  }
+
   List<String> get categories => 
       typeTransaction == "Dépense" ? categoriesDepense : categoriesRevenu;
 
@@ -51,14 +74,21 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
     }
 
     return Scaffold(
+      backgroundColor: Color(0xFF0D1117),
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text("Ajouter une transaction", style: TextStyle(color: Colors.white)),
+        title: Text(
+          widget.transactionToEdit != null ? "Modifier la transaction" : "Ajouter une transaction",
+          style: TextStyle(color: Colors.white)
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
       ),
       extendBodyBehindAppBar: true,
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -312,7 +342,7 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
                 ),
                 SizedBox(height: 30),
 
-                // Bouton Ajouter
+                // Bouton Ajouter/Modifier
                 ElevatedButton(
                   onPressed: () {
                     if (montantController.text.isEmpty || categorieSelectionnee == null) {
@@ -339,17 +369,41 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
                       return;
                     }
                     
-                    final transaction = {
-                      "id": DateTime.now().millisecondsSinceEpoch.toString(),
-                      "type": typeTransaction,
-                      "amount": montant,
-                      "compte": compteSelectionne,
-                      "categorie": categorieSelectionnee,
-                      "commentaire": commentaireController.text,
-                      "date": DateTime.now().toIso8601String(),
-                    };
-                    
-                    Navigator.pop(context, transaction);
+                    // Si on modifie une transaction existante
+                    if (widget.transactionToEdit != null) {
+                      // Créer la nouvelle transaction avec les modifications
+                      final nouvelleTransaction = {
+                        "id": widget.transactionToEdit!.id, // Garder le même ID
+                        "type": typeTransaction,
+                        "amount": montant,
+                        "compte": compteSelectionne,
+                        "categorie": categorieSelectionnee,
+                        "commentaire": commentaireController.text,
+                        "date": selectedDate.toIso8601String(),
+                        "devise": widget.transactionToEdit!.devise,
+                      };
+                      
+                      // Retourner les deux transactions (ancienne et nouvelle) pour la modification
+                      Navigator.pop(context, {
+                        "action": "modify",
+                        "old": widget.transactionToEdit,
+                        "new": nouvelleTransaction,
+                      });
+                    } else {
+                      // Créer une nouvelle transaction
+                      final transaction = {
+                        "id": DateTime.now().millisecondsSinceEpoch.toString(),
+                        "type": typeTransaction,
+                        "amount": montant,
+                        "compte": compteSelectionne,
+                        "categorie": categorieSelectionnee,
+                        "commentaire": commentaireController.text,
+                        "date": selectedDate.toIso8601String(),
+                        "devise": "EUR",
+                      };
+                      
+                      Navigator.pop(context, transaction);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
@@ -360,7 +414,7 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
                     ),
                   ),
                   child: Text(
-                    "Ajouter la transaction",
+                    widget.transactionToEdit != null ? "Modifier la transaction" : "Ajouter la transaction",
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),

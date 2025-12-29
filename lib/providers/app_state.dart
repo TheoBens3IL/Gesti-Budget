@@ -1,77 +1,152 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../models/transaction.dart';
+import '../services/firebase_service.dart';
 
 class AppState extends ChangeNotifier {
-  // Liste des transactions
-  final List<Transaction> _transactions = [];
+  // Liste des transactions (cache local)
+  List<Transaction> _transactions = [];
 
-  // Map des comptes avec leurs soldes
-  final Map<String, double> _comptesAvecSoldes = {
-    "Compte principal": 1250.50,
-    "Compte épargne": 3500.00,
-    "Compte courant": 850.75,
-  };
+  // Map des comptes avec leurs soldes (cache local)
+  Map<String, double> _comptesAvecSoldes = {};
+
+  // Subscriptions pour les streams Firebase
+  StreamSubscription<List<Transaction>>? _transactionsSubscription;
+  StreamSubscription<Map<String, double>>? _comptesSubscription;
+
+  // Flag pour indiquer si les données ont été chargées au moins une fois
+  bool _hasLoadedComptes = false;
 
   // Getters
   List<Transaction> get transactions => List.unmodifiable(_transactions);
   Map<String, double> get comptesAvecSoldes => Map.unmodifiable(_comptesAvecSoldes);
+  bool get hasLoadedComptes => _hasLoadedComptes;
+
+  // Initialisation - écoute Firebase
+  AppState() {
+    _initializeFirebaseListeners();
+  }
+
+  void _initializeFirebaseListeners() {
+    // Annuler les anciens streams s'ils existent
+    _comptesSubscription?.cancel();
+    _transactionsSubscription?.cancel();
+
+    // Écouter les changements de comptes
+    _comptesSubscription = FirebaseService.getComptesStream().listen((comptes) {
+      _comptesAvecSoldes = comptes;
+      _hasLoadedComptes = true; // Marquer comme chargé après la première réception
+      notifyListeners();
+    });
+
+    // Écouter les changements de transactions
+    _transactionsSubscription = FirebaseService.getTransactionsStream().listen((transactions) {
+      _transactions = transactions;
+      notifyListeners();
+    });
+  }
+
+  // Réinitialiser les listeners (appelé lors du changement d'utilisateur)
+  void reinitialize() {
+    _initializeFirebaseListeners();
+  }
 
   // Ajouter un compte
-  void ajouterCompte(String nomCompte, double soldeInitial) {
-    if (!_comptesAvecSoldes.containsKey(nomCompte)) {
-      _comptesAvecSoldes[nomCompte] = soldeInitial;
-      notifyListeners();
-    }
+  Future<void> ajouterCompte(String nomCompte, double soldeInitial) async {
+    await FirebaseService.ajouterCompte(nomCompte, soldeInitial);
+    // Les données seront automatiquement mises à jour via le stream
   }
 
   // Supprimer un compte
-  void supprimerCompte(String nomCompte) {
+  Future<void> supprimerCompte(String nomCompte) async {
     // Ne pas supprimer si c'est le dernier compte
     if (_comptesAvecSoldes.length > 1) {
-      _comptesAvecSoldes.remove(nomCompte);
-      // Supprimer aussi toutes les transactions de ce compte
-      _transactions.removeWhere((t) => t.compte == nomCompte);
-      notifyListeners();
+      await FirebaseService.supprimerCompte(nomCompte);
+      // Les données seront automatiquement mises à jour via le stream
     }
   }
 
   // Ajouter une transaction
-  void ajouterTransaction(Transaction transaction) {
-    _transactions.add(transaction);
+  Future<void> ajouterTransaction(Transaction transaction) async {
+    await FirebaseService.ajouterTransaction(transaction);
     
-    // Mettre à jour le solde du compte
+    // Mettre à jour le solde du compte localement
+    double currentSolde = _comptesAvecSoldes[transaction.compte] ?? 0.0;
+    double newSolde;
+    
     if (transaction.type == "Dépense") {
-      _comptesAvecSoldes[transaction.compte] = 
-          (_comptesAvecSoldes[transaction.compte] ?? 0.0) - transaction.amount;
+      newSolde = currentSolde - transaction.amount;
     } else {
-      _comptesAvecSoldes[transaction.compte] = 
-          (_comptesAvecSoldes[transaction.compte] ?? 0.0) + transaction.amount;
+      newSolde = currentSolde + transaction.amount;
     }
     
-    notifyListeners();
+    await FirebaseService.modifierSoldeCompte(transaction.compte, newSolde);
+    // Les données seront automatiquement mises à jour via le stream
+  }
+
+  // Modifier une transaction
+  Future<void> modifierTransaction(Transaction ancienneTransaction, Transaction nouvelleTransaction) async {
+    // Supprimer l'ancienne transaction de Firebase (sans modifier le solde)
+    await FirebaseService.supprimerTransaction(ancienneTransaction.id);
+    
+    // Ajouter la nouvelle transaction à Firebase (sans modifier le solde)
+    await FirebaseService.ajouterTransaction(nouvelleTransaction);
+    
+    // Calculer l'effet net sur le solde
+    double currentSolde = _comptesAvecSoldes[ancienneTransaction.compte] ?? 0.0;
+    
+    // Annuler l'effet de l'ancienne transaction
+    if (ancienneTransaction.type == "Dépense") {
+      currentSolde += ancienneTransaction.amount;
+    } else {
+      currentSolde -= ancienneTransaction.amount;
+    }
+    
+    // Appliquer l'effet de la nouvelle transaction
+    if (nouvelleTransaction.type == "Dépense") {
+      currentSolde -= nouvelleTransaction.amount;
+    } else {
+      currentSolde += nouvelleTransaction.amount;
+    }
+    
+    // Mettre à jour le solde du compte
+    await FirebaseService.modifierSoldeCompte(nouvelleTransaction.compte, currentSolde);
+    
+    // Si le compte a changé, mettre à jour aussi l'ancien compte
+    if (ancienneTransaction.compte != nouvelleTransaction.compte) {
+      double ancienSolde = _comptesAvecSoldes[ancienneTransaction.compte] ?? 0.0;
+      if (ancienneTransaction.type == "Dépense") {
+        ancienSolde += ancienneTransaction.amount;
+      } else {
+        ancienSolde -= ancienneTransaction.amount;
+      }
+      await FirebaseService.modifierSoldeCompte(ancienneTransaction.compte, ancienSolde);
+    }
   }
 
   // Supprimer une transaction
-  void supprimerTransaction(String id) {
+  Future<void> supprimerTransaction(String id) async {
     final transaction = _transactions.firstWhere((t) => t.id == id);
     
     // Restaurer le solde
+    double currentSolde = _comptesAvecSoldes[transaction.compte] ?? 0.0;
+    double newSolde;
+    
     if (transaction.type == "Dépense") {
-      _comptesAvecSoldes[transaction.compte] = 
-          (_comptesAvecSoldes[transaction.compte] ?? 0.0) + transaction.amount;
+      newSolde = currentSolde + transaction.amount;
     } else {
-      _comptesAvecSoldes[transaction.compte] = 
-          (_comptesAvecSoldes[transaction.compte] ?? 0.0) - transaction.amount;
+      newSolde = currentSolde - transaction.amount;
     }
     
-    _transactions.removeWhere((t) => t.id == id);
-    notifyListeners();
+    await FirebaseService.modifierSoldeCompte(transaction.compte, newSolde);
+    await FirebaseService.supprimerTransaction(id);
+    // Les données seront automatiquement mises à jour via le stream
   }
 
   // Modifier le solde d'un compte
-  void modifierSoldeCompte(String compte, double nouveauSolde) {
-    _comptesAvecSoldes[compte] = nouveauSolde;
-    notifyListeners();
+  Future<void> modifierSoldeCompte(String compte, double nouveauSolde) async {
+    await FirebaseService.modifierSoldeCompte(compte, nouveauSolde);
+    // Les données seront automatiquement mises à jour via le stream
   }
 
   // Obtenir les transactions par période ET par compte
@@ -151,5 +226,12 @@ class AppState extends ChangeNotifier {
     return getTransactionsByPeriod(period, compte: compte)
         .where((t) => t.type == "Revenu")
         .fold(0.0, (sum, t) => sum + t.amount);
+  }
+
+  @override
+  void dispose() {
+    _transactionsSubscription?.cancel();
+    _comptesSubscription?.cancel();
+    super.dispose();
   }
 }

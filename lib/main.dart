@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'providers/app_state.dart';
 import 'models/transaction.dart';
 import 'ajouter_transaction.dart';
@@ -7,16 +10,17 @@ import 'liste_transactions.dart';
 import 'utils/dialogs.dart';
 import 'convertisseur_devises.dart';
 import 'widgets/graphiques.dart';
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
+import 'pages/auth_page.dart';
 
-void main() {
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => AppState(),
-      child: const GestiBudgetApp(),
-    ),
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialiser Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  runApp(const GestiBudgetApp());
 }
 
 class GestiBudgetApp extends StatelessWidget {
@@ -24,13 +28,64 @@ class GestiBudgetApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GestiBudget',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Attendre que la connexion soit active
+        if (snapshot.connectionState != ConnectionState.active) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              body: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF0D1117),
+                      Color(0xFF1A0F2E),
+                      Color(0xFF0F0A1F),
+                      Color(0xFF000000),
+                    ],
+                  ),
+                ),
+                child: Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final user = snapshot.data;
+        
+        // Si pas d'utilisateur connecté, montrer la page d'auth sans Provider
+        if (user == null) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'GestiBudget',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              useMaterial3: true,
+            ),
+            home: const AuthPage(),
+          );
+        }
+
+        // Utilisateur connecté -> Créer le Provider pour toute l'app
+        return ChangeNotifierProvider(
+          create: (context) => AppState(),
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'GestiBudget',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              useMaterial3: true,
+            ),
+            home: const MyHomePage(title: 'GestiBudget'),
+          ),
+        );
+      },
     );
   }
 }
@@ -46,11 +101,91 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   String selectedPeriod = "Mois";
-  String compte = "Compte principal";
+  late String compte;
+  bool _initialized = false;
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    
+    // Initialiser le compte avec le premier disponible
+    if (!_initialized && appState.comptesAvecSoldes.isNotEmpty) {
+      compte = appState.comptesAvecSoldes.keys.first;
+      _initialized = true;
+    }
+    
+    // Vérifier que le compte sélectionné existe toujours
+    if (_initialized && !appState.comptesAvecSoldes.containsKey(compte)) {
+      if (appState.comptesAvecSoldes.isNotEmpty) {
+        compte = appState.comptesAvecSoldes.keys.first;
+      } else {
+        _initialized = false;
+      }
+    }
+    
+    // Si les données ne sont pas encore chargées, afficher un indicateur de chargement
+    if (!appState.hasLoadedComptes) {
+      return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0D1117),
+                Color(0xFF1A0F2E),
+                Color(0xFF0F0A1F),
+                Color(0xFF000000),
+              ],
+            ),
+          ),
+          child: Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+        ),
+      );
+    }
+    
+    // Si aucun compte n'existe après le chargement, afficher un message
+    if (appState.comptesAvecSoldes.isEmpty) {
+      return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0D1117),
+                Color(0xFF1A0F2E),
+                Color(0xFF0F0A1F),
+                Color(0xFF000000),
+              ],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "Aucun compte disponible",
+                  style: TextStyle(color: Colors.white, fontSize: 18),
+                ),
+                SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => CompteDialogs.ajouterCompte(context, (nomCompte) {
+                    setState(() {
+                      compte = nomCompte;
+                      _initialized = true;
+                    });
+                  }),
+                  child: Text("Créer un compte"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     
     // Récupérer les catégories filtrées par compte
     final categoriesDepenses = appState.getDepensesParCategorie(selectedPeriod, compte: compte);
@@ -89,6 +224,15 @@ class _MyHomePageState extends State<MyHomePage> {
                           );
                         },
                       ),
+                      Divider(color: Colors.white.withOpacity(0.2)),
+                      ListTile(
+                        leading: Icon(Icons.logout, color: Colors.redAccent),
+                        title: Text("Se déconnecter", style: TextStyle(color: Colors.redAccent)),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await FirebaseAuth.instance.signOut();
+                        },
+                      ),
                     ],
                   ),
                 );
@@ -106,6 +250,7 @@ class _MyHomePageState extends State<MyHomePage> {
             });
           },
           onEditSolde: () => CompteDialogs.modifierSolde(context, compte),
+          onConvertCurrency: () => CompteDialogs.convertirDevise(context, solde),
           onAddCompte: () => CompteDialogs.ajouterCompte(context, (nomCompte) {
             setState(() {
               compte = nomCompte;
@@ -123,6 +268,83 @@ class _MyHomePageState extends State<MyHomePage> {
           },
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.account_circle, color: Colors.white, size: 32),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Color(0xFF1A0F2E),
+                builder: (context) {
+                  final user = FirebaseAuth.instance.currentUser;
+                  return Container(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          leading: Icon(Icons.person, color: Colors.white),
+                          title: Text("Profil", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            user?.email ?? "Utilisateur",
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ),
+                        Divider(color: Colors.white.withOpacity(0.2)),
+                        // Liste des comptes pour changer
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text(
+                            "Changer de compte",
+                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        ...appState.comptesAvecSoldes.keys.map((nomCompte) {
+                          final isSelected = nomCompte == compte;
+                          return ListTile(
+                            leading: Icon(
+                              isSelected ? Icons.account_balance_wallet : Icons.account_balance_wallet_outlined,
+                              color: isSelected ? Colors.greenAccent : Colors.white70,
+                            ),
+                            title: Text(
+                              nomCompte,
+                              style: TextStyle(
+                                color: isSelected ? Colors.greenAccent : Colors.white,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                            trailing: Text(
+                              "€${appState.comptesAvecSoldes[nomCompte]!.toStringAsFixed(2)}",
+                              style: TextStyle(
+                                color: isSelected ? Colors.greenAccent : Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              setState(() {
+                                compte = nomCompte;
+                              });
+                            },
+                          );
+                        }).toList(),
+                        Divider(color: Colors.white.withOpacity(0.2)),
+                        ListTile(
+                          leading: Icon(Icons.logout, color: Colors.redAccent),
+                          title: Text("Se déconnecter", style: TextStyle(color: Colors.redAccent)),
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await FirebaseAuth.instance.signOut();
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
       ),
       extendBodyBehindAppBar: true,
       body: Container(
@@ -182,7 +404,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => AjouterTransactionPage(),
+                              builder: (context) => AjouterTransactionPage(compteInitial: compte),
                             ),
                           );
                           if (result != null && mounted) {
@@ -229,7 +451,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Row(
                     children: [
                       // Colonne Dépenses
-                      Expanded(
+                      Flexible(
+                        flex: 1,
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.05),
@@ -350,9 +573,10 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         ),
                       ),
-                      SizedBox(width: 8),
+                      SizedBox(width: 4),
                       // Colonne Revenus
-                      Expanded(
+                      Flexible(
+                        flex: 1,
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.05),
@@ -492,6 +716,7 @@ class HeaderCompte extends StatelessWidget {
   final Map<String, double> comptesAvecSoldes;
   final ValueChanged<String?> onCompteChanged;
   final VoidCallback onEditSolde;
+  final VoidCallback onConvertCurrency;
   final VoidCallback onAddCompte;
   final Function(String) onDeleteCompte;
 
@@ -502,6 +727,7 @@ class HeaderCompte extends StatelessWidget {
     required this.comptesAvecSoldes,
     required this.onCompteChanged,
     required this.onEditSolde,
+    required this.onConvertCurrency,
     required this.onAddCompte,
     required this.onDeleteCompte,
   });
@@ -522,6 +748,11 @@ class HeaderCompte extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            GestureDetector(
+              onTap: onConvertCurrency,
+              child: Icon(Icons.currency_exchange, color: Colors.white70, size: 18),
+            ),
+            SizedBox(width: 8),
             Text(
               "€${solde.toStringAsFixed(2)}",
               style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
