@@ -18,6 +18,7 @@ class ListeTransactionsPage extends StatefulWidget {
 class ListeTransactionsPageState extends State<ListeTransactionsPage> {
   String selectedPeriod = "Mois";
   late String compteSelectionne;
+  int periodOffset = 0; // 0 = période actuelle, -1 = période précédente, etc.
 
   @override
   void initState() {
@@ -28,7 +29,7 @@ class ListeTransactionsPageState extends State<ListeTransactionsPage> {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final transactions = appState.getTransactionsByPeriod(selectedPeriod, compte: compteSelectionne);
+    final transactions = appState.getTransactionsByPeriod(selectedPeriod, compte: compteSelectionne, offset: periodOffset);
     final solde = appState.comptesAvecSoldes[compteSelectionne] ?? 0.0;
 
     return Scaffold(
@@ -90,6 +91,18 @@ class ListeTransactionsPageState extends State<ListeTransactionsPage> {
                   onPeriodChanged: (period) {
                     setState(() {
                       selectedPeriod = period;
+                      periodOffset = 0; // Réinitialiser l'offset lors du changement de période
+                    });
+                  },
+                  periodOffset: periodOffset,
+                  onPreviousPeriod: () {
+                    setState(() {
+                      periodOffset--;
+                    });
+                  },
+                  onNextPeriod: () {
+                    setState(() {
+                      periodOffset++;
                     });
                   },
                 ),

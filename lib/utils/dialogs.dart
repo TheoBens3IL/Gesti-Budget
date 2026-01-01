@@ -525,7 +525,7 @@ class _ConvertirDeviseDialogState extends State<_ConvertirDeviseDialog> {
                     ),
                     SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _deviseSelectionnee,
+                      initialValue: _deviseSelectionnee,
                       dropdownColor: Color(0xFF1A0F2E),
                       style: TextStyle(color: Colors.white),
                       decoration: InputDecoration(

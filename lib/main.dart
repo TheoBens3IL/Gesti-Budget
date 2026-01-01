@@ -103,6 +103,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String selectedPeriod = "Mois";
   late String compte;
   bool _initialized = false;
+  int periodOffset = 0; // 0 = période actuelle, -1 = période précédente, etc.
 
   @override
   Widget build(BuildContext context) {
@@ -188,11 +189,11 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     
     // Récupérer les catégories filtrées par compte
-    final categoriesDepenses = appState.getDepensesParCategorie(selectedPeriod, compte: compte);
-    final categoriesRevenus = appState.getRevenusParCategorie(selectedPeriod, compte: compte);
+    final categoriesDepenses = appState.getDepensesParCategorie(selectedPeriod, compte: compte, offset: periodOffset);
+    final categoriesRevenus = appState.getRevenusParCategorie(selectedPeriod, compte: compte, offset: periodOffset);
     
-    final totalDepenses = appState.getTotalDepenses(selectedPeriod, compte: compte);
-    final totalRevenus = appState.getTotalRevenus(selectedPeriod, compte: compte);
+    final totalDepenses = appState.getTotalDepenses(selectedPeriod, compte: compte, offset: periodOffset);
+    final totalRevenus = appState.getTotalRevenus(selectedPeriod, compte: compte, offset: periodOffset);
     
     final solde = appState.comptesAvecSoldes[compte] ?? 0.0;
 
@@ -363,7 +364,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(8.0),
             child: Column(
               children: [
                 // Commenté - Sélecteur Dépense/Revenu
@@ -382,18 +383,31 @@ class _MyHomePageState extends State<MyHomePage> {
                   onPeriodChanged: (period) {
                     setState(() {
                       selectedPeriod = period;
+                      periodOffset = 0; // Réinitialiser l'offset lors du changement de période
+                    });
+                  },
+                  periodOffset: periodOffset,
+                  onPreviousPeriod: () {
+                    setState(() {
+                      periodOffset--;
+                    });
+                  },
+                  onNextPeriod: () {
+                    setState(() {
+                      periodOffset++;
                     });
                   },
                 ),
-                SizedBox(height: 20),
+                SizedBox(height: 8),
 
                 // ---------------- Section Graphique ----------------
                 GraphiquesCarousel(
                   depenses: categoriesDepenses,
                   revenus: categoriesRevenus,
                   periode: selectedPeriod,
+                  transactions: appState.getTransactionsByPeriod(selectedPeriod, compte: compte, offset: periodOffset),
                 ),
-                SizedBox(height: 10),
+                SizedBox(height: 12),
 
                 // Boutons d'action
                 Row(
@@ -445,6 +459,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   ],
                 ),
+                SizedBox(height: 12),
 
                 // ---------------- Deux colonnes: Dépenses et Revenus ----------------
                 Expanded(
@@ -511,7 +526,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                           
                                           // Utiliser la même couleur que le graphique
                                           final allCategories = categoriesDepenses.keys.toList();
-                                          final categoryColor = getCategoryColor(entry.key, allCategories);
+                                          final categoryColor = getCategoryColor(entry.key, allCategories, isRevenu: false);
                                           
                                           return Card(
                                             color: Colors.white.withValues(alpha: 0.08),
@@ -635,7 +650,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                           
                                           // Utiliser la même couleur que le graphique
                                           final allCategories = categoriesRevenus.keys.toList();
-                                          final categoryColor = getCategoryColor(entry.key, allCategories);
+                                          final categoryColor = getCategoryColor(entry.key, allCategories, isRevenu: true);
                                           
                                           return Card(
                                             color: Colors.white.withValues(alpha: 0.08),
@@ -879,31 +894,116 @@ class CompteDropdownMenu extends StatelessWidget {
 class PeriodeSelector extends StatelessWidget {
   final String selectedPeriod;
   final ValueChanged<String> onPeriodChanged;
+  final int periodOffset;
+  final VoidCallback onPreviousPeriod;
+  final VoidCallback onNextPeriod;
 
   const PeriodeSelector({
     super.key,
     required this.selectedPeriod,
     required this.onPeriodChanged,
+    required this.periodOffset,
+    required this.onPreviousPeriod,
+    required this.onNextPeriod,
   });
+
+  String _getPeriodLabel() {
+    final now = DateTime.now();
+    
+    switch (selectedPeriod) {
+      case "Jour":
+        final targetDay = DateTime(now.year, now.month, now.day).add(Duration(days: periodOffset));
+        return "${targetDay.day.toString().padLeft(2, '0')}/${targetDay.month.toString().padLeft(2, '0')}/${targetDay.year}";
+      
+      case "Semaine":
+        final targetDate = now.add(Duration(days: periodOffset * 7));
+        final startWeek = targetDate.subtract(Duration(days: 7));
+        final endWeek = targetDate;
+        return "${startWeek.day.toString().padLeft(2, '0')}/${startWeek.month.toString().padLeft(2, '0')} - ${endWeek.day.toString().padLeft(2, '0')}/${endWeek.month.toString().padLeft(2, '0')}/${endWeek.year}";
+      
+      case "Mois":
+        final targetMonth = DateTime(now.year, now.month + periodOffset, 1);
+        final months = [
+          "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+          "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+        ];
+        return "${months[targetMonth.month - 1]} ${targetMonth.year}";
+      
+      case "Année":
+        final targetYear = now.year + periodOffset;
+        return "$targetYear";
+      
+      default:
+        final targetMonth = DateTime(now.year, now.month + periodOffset, 1);
+        final months = [
+          "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+          "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+        ];
+        return "${months[targetMonth.month - 1]} ${targetMonth.year}";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: ["Jour", "Semaine", "Mois", "Année"].map((period) {
-        bool isSelected = selectedPeriod == period;
-        return ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isSelected 
-                ? Colors.white.withValues(alpha: 0.3)
-                : Colors.white.withValues(alpha: 0.1),
-            foregroundColor: Colors.white,
-            elevation: isSelected ? 4 : 0,
+    return Column(
+      children: [
+        // Boutons de sélection de période
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: ["Jour", "Semaine", "Mois", "Année"].map((period) {
+            bool isSelected = selectedPeriod == period;
+            return ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isSelected 
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : Colors.white.withValues(alpha: 0.1),
+                foregroundColor: Colors.white,
+                elevation: isSelected ? 4 : 0,
+              ),
+              onPressed: () => onPeriodChanged(period),
+              child: Text(period),
+            );
+          }).toList(),
+        ),
+        SizedBox(height: 12),
+        // Navigation temporelle
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
           ),
-          onPressed: () => onPeriodChanged(period),
-          child: Text(period),
-        );
-      }).toList(),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: Icon(Icons.chevron_left, color: Colors.white),
+                onPressed: onPreviousPeriod,
+                tooltip: "Période précédente",
+              ),
+              Expanded(
+                child: Text(
+                  _getPeriodLabel(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.chevron_right,
+                  color: periodOffset == 0 ? Colors.white.withValues(alpha: 0.3) : Colors.white,
+                ),
+                onPressed: periodOffset == 0 ? null : onNextPeriod,
+                tooltip: "Période suivante",
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

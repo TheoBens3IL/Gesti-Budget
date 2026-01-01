@@ -1,24 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-// Couleurs globales pour les catégories (partagées entre graphiques et listes)
-const List<Color> categoryColors = [
-  Color(0xFFE74C3C), // Rouge
-  Color(0xFFE67E22), // Orange
-  Color(0xFFF39C12), // Jaune/Orange
-  Color(0xFF2ECC71), // Vert
-  Color(0xFF3498DB), // Bleu
-  Color(0xFF9B59B6), // Violet
-  Color(0xFF1ABC9C), // Turquoise
+// Couleurs pour les dépenses (palette chaude très variée)
+const List<Color> depenseColors = [
+  Color(0xFFFF5252), // Rouge vif
+  Color(0xFFFF9800), // Orange 
+  Color(0xFFFFEB3B), // Jaune
+  Color(0xFFFF4081), // Rose fuchsia
+  Color(0xFFD84315), // Rouge-brun
+  Color(0xFFFFB300), // Ambre
   Color(0xFFE91E63), // Rose
-  Color(0xFF34495E), // Gris foncé
-  Color(0xFF16A085), // Vert foncé
+  Color(0xFFFF6F00), // Orange foncé
+  Color(0xFFFFD600), // Jaune citron
+  Color(0xFF8D6E63), // Marron
+  Color(0xFFFF1744), // Rouge-rose
+  Color(0xFFFF6E40), // Orange corail
+  Color(0xFFF57C00), // Orange brûlé
+  Color(0xFFAD1457), // Rose bordeaux
+  Color(0xFFFF9100), // Orange doré
+];
+
+// Couleurs pour les revenus (palette froide très variée)
+const List<Color> revenuColors = [
+  Color(0xFF4CAF50), // Vert
+  Color(0xFF2196F3), // Bleu
+  Color(0xFF00BCD4), // Cyan
+  Color(0xFF009688), // Turquoise/Teal
+  Color(0xFF3F51B5), // Indigo
+  Color(0xFF00796B), // Vert foncé
+  Color(0xFF0097A7), // Cyan foncé
+  Color(0xFF1976D2), // Bleu foncé
+  Color(0xFF388E3C), // Vert forêt
+  Color(0xFF0288D1), // Bleu clair
+  Color(0xFF26A69A), // Turquoise clair
+  Color(0xFF5C6BC0), // Indigo clair
+  Color(0xFF00ACC1), // Cyan vif
+  Color(0xFF66BB6A), // Vert clair
+  Color(0xFF42A5F5), // Bleu ciel
 ];
 
 // Fonction pour obtenir la couleur d'une catégorie
-Color getCategoryColor(String categorie, List<String> allCategories) {
+Color getCategoryColor(String categorie, List<String> allCategories, {bool isRevenu = false}) {
   final index = allCategories.indexOf(categorie);
-  return categoryColors[index % categoryColors.length];
+  final colors = isRevenu ? revenuColors : depenseColors;
+  return colors[index % colors.length];
 }
 
 // ================ Graphique en ligne (courbe) ================
@@ -26,18 +51,122 @@ class GraphiqueLigne extends StatelessWidget {
   final Map<String, double> depenses;
   final Map<String, double> revenus;
   final String periode;
+  final List<dynamic> transactions;
 
   const GraphiqueLigne({
     super.key,
     required this.depenses,
     required this.revenus,
     required this.periode,
+    required this.transactions,
   });
+
+  List<FlSpot> _generateSpots(String type) {
+    if (transactions.isEmpty) return [FlSpot(0, 0)];
+
+    // Trier les transactions par date
+    final sortedTransactions = List.from(transactions);
+    sortedTransactions.sort((a, b) => a.date.compareTo(b.date));
+
+    // Filtrer par type
+    final filteredTransactions = sortedTransactions.where((t) => t.type == type).toList();
+    
+    if (filteredTransactions.isEmpty) return [FlSpot(0, 0)];
+
+    // Calculer les points cumulatifs
+    List<FlSpot> spots = [];
+    double cumulative = 0.0;
+    
+    // Déterminer le nombre de points selon la période
+    int maxPoints = 0;
+    switch (periode) {
+      case "Jour":
+        maxPoints = 24; // Heures
+        break;
+      case "Semaine":
+        maxPoints = 7; // Jours
+        break;
+      case "Mois":
+        maxPoints = 30; // Jours
+        break;
+      case "Année":
+        maxPoints = 12; // Mois
+        break;
+      default:
+        maxPoints = 30;
+    }
+
+    // Créer une carte de sommes par intervalle
+    Map<int, double> sumsByInterval = {};
+    
+    for (var transaction in filteredTransactions) {
+      int interval;
+      final date = transaction.date;
+      
+      switch (periode) {
+        case "Jour":
+          interval = date.hour;
+          break;
+        case "Semaine":
+          interval = date.weekday - 1; // 0-6
+          break;
+        case "Mois":
+          interval = date.day - 1; // 0-29
+          break;
+        case "Année":
+          interval = date.month - 1; // 0-11
+          break;
+        default:
+          interval = date.day - 1;
+      }
+      
+      sumsByInterval[interval] = (sumsByInterval[interval] ?? 0.0) + transaction.amount;
+    }
+
+    // Générer les spots cumulatifs
+    cumulative = 0.0;
+    for (int i = 0; i < maxPoints; i++) {
+      cumulative += sumsByInterval[i] ?? 0.0;
+      if (cumulative > 0) {
+        spots.add(FlSpot(i.toDouble(), cumulative));
+      }
+    }
+
+    // Si aucun spot n'a été ajouté, retourner un spot à zéro
+    if (spots.isEmpty) return [FlSpot(0, 0)];
+
+    return spots;
+  }
+
+  String _getBottomTitle(double value, String periode) {
+    final intValue = value.toInt();
+    switch (periode) {
+      case "Jour":
+        return "${intValue}h";
+      case "Semaine":
+        const days = ["L", "M", "M", "J", "V", "S", "D"];
+        return intValue < days.length ? days[intValue] : "";
+      case "Mois":
+        return intValue % 5 == 0 ? "${intValue + 1}" : "";
+      case "Année":
+        const months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+        return intValue < months.length ? months[intValue] : "";
+      default:
+        return "";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final totalDepenses = depenses.values.fold(0.0, (sum, val) => sum + val);
-    final totalRevenus = revenus.values.fold(0.0, (sum, val) => sum + val);
+    final spotsDepenses = _generateSpots("Dépense");
+    final spotsRevenus = _generateSpots("Revenu");
+
+    // Trouver le max pour l'échelle
+    double maxY = 0;
+    for (var spot in [...spotsDepenses, ...spotsRevenus]) {
+      if (spot.y > maxY) maxY = spot.y;
+    }
+    if (maxY == 0) maxY = 100; // Valeur par défaut
 
     return Container(
       padding: EdgeInsets.all(16),
@@ -51,12 +180,23 @@ class GraphiqueLigne extends StatelessWidget {
           Expanded(
             child: LineChart(
               LineChartData(
-                gridData: FlGridData(show: false),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: maxY / 4,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
+                      interval: maxY / 4,
                       getTitlesWidget: (value, meta) {
                         return Text(
                           '€${value.toInt()}',
@@ -66,23 +206,36 @@ class GraphiqueLigne extends StatelessWidget {
                     ),
                   ),
                   bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      getTitlesWidget: (value, meta) {
+                        return Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            _getBottomTitle(value, periode),
+                            style: TextStyle(color: Colors.white60, fontSize: 10),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
+                minY: 0,
+                maxY: maxY * 1.1,
                 lineBarsData: [
                   // Ligne des dépenses
                   LineChartBarData(
-                    spots: [
-                      FlSpot(0, 0),
-                      FlSpot(1, totalDepenses),
-                    ],
+                    spots: spotsDepenses,
                     isCurved: true,
                     color: Colors.red,
                     barWidth: 3,
-                    dotData: FlDotData(show: true),
+                    dotData: FlDotData(
+                      show: spotsDepenses.length <= 12,
+                    ),
                     belowBarData: BarAreaData(
                       show: true,
                       color: Colors.red.withValues(alpha: 0.2),
@@ -90,14 +243,13 @@ class GraphiqueLigne extends StatelessWidget {
                   ),
                   // Ligne des revenus
                   LineChartBarData(
-                    spots: [
-                      FlSpot(0, 0),
-                      FlSpot(1, totalRevenus),
-                    ],
+                    spots: spotsRevenus,
                     isCurved: true,
                     color: Colors.green,
                     barWidth: 3,
-                    dotData: FlDotData(show: true),
+                    dotData: FlDotData(
+                      show: spotsRevenus.length <= 12,
+                    ),
                     belowBarData: BarAreaData(
                       show: true,
                       color: Colors.green.withValues(alpha: 0.2),
@@ -242,7 +394,7 @@ class GraphiqueBarres extends StatelessWidget {
 }
 
 // ================ Graphique en camembert (Pie Chart) ================
-class GraphiqueCamembert extends StatelessWidget {
+class GraphiqueCamembert extends StatefulWidget {
   final Map<String, double> depenses;
   final Map<String, double> revenus;
   final bool afficherDepenses;
@@ -255,8 +407,15 @@ class GraphiqueCamembert extends StatelessWidget {
   });
 
   @override
+  State<GraphiqueCamembert> createState() => _GraphiqueCamembertState();
+}
+
+class _GraphiqueCamembertState extends State<GraphiqueCamembert> {
+  int touchedIndex = -1;
+
+  @override
   Widget build(BuildContext context) {
-    final data = afficherDepenses ? depenses : revenus;
+    final data = widget.afficherDepenses ? widget.depenses : widget.revenus;
     final total = data.values.fold(0.0, (sum, val) => sum + val);
 
     if (total == 0) {
@@ -271,21 +430,34 @@ class GraphiqueCamembert extends StatelessWidget {
     final allCategories = data.keys.toList();
     List<PieChartSectionData> sections = [];
 
+    int index = 0;
     data.forEach((categorie, montant) {
       final percent = (montant / total) * 100;
+      final isTouched = index == touchedIndex;
+      final fontSize = isTouched ? 12.0 : 10.0;
+      final radius = isTouched ? 70.0 : 60.0;
+      
       sections.add(
         PieChartSectionData(
           value: montant,
-          title: '${percent.toStringAsFixed(1)}%',
-          color: getCategoryColor(categorie, allCategories),
-          radius: 60, // Réduit de 70 à 60
+          title: isTouched ? categorie : '${percent.toStringAsFixed(1)}%',
+          color: getCategoryColor(categorie, allCategories, isRevenu: !widget.afficherDepenses),
+          radius: radius,
           titleStyle: TextStyle(
-            fontSize: 10,
+            fontSize: fontSize,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: 0.8),
+                offset: Offset(1, 1),
+                blurRadius: 2,
+              ),
+            ],
           ),
         ),
       );
+      index++;
     });
 
     return Container(
@@ -296,7 +468,7 @@ class GraphiqueCamembert extends StatelessWidget {
           Container(
             padding: EdgeInsets.only(top: 12, bottom: 16),
             child: Text(
-              afficherDepenses ? "Répartition des Dépenses" : "Répartition des Revenus",
+              widget.afficherDepenses ? "Répartition des Dépenses" : "Répartition des Revenus",
               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
             ),
           ),
@@ -308,7 +480,20 @@ class GraphiqueCamembert extends StatelessWidget {
                 PieChartData(
                   sections: sections,
                   sectionsSpace: 2,
-                  centerSpaceRadius: 30, // Réduit de 35 à 30
+                  centerSpaceRadius: 30,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                      setState(() {
+                        if (!event.isInterestedForInteractions ||
+                            pieTouchResponse == null ||
+                            pieTouchResponse.touchedSection == null) {
+                          touchedIndex = -1;
+                          return;
+                        }
+                        touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                      });
+                    },
+                  ),
                 ),
               ),
             ),
@@ -325,12 +510,14 @@ class GraphiquesCarousel extends StatefulWidget {
   final Map<String, double> depenses;
   final Map<String, double> revenus;
   final String periode;
+  final List<dynamic> transactions;
 
   const GraphiquesCarousel({
     super.key,
     required this.depenses,
     required this.revenus,
     required this.periode,
+    required this.transactions,
   });
 
   @override
@@ -375,15 +562,6 @@ class _GraphiquesCarouselState extends State<GraphiquesCarousel> {
                       });
                     },
                     children: [
-                      GraphiqueBarres(
-                        depenses: widget.depenses,
-                        revenus: widget.revenus,
-                      ),
-                      GraphiqueLigne(
-                        depenses: widget.depenses,
-                        revenus: widget.revenus,
-                        periode: widget.periode,
-                      ),
                       GraphiqueCamembert(
                         depenses: widget.depenses,
                         revenus: widget.revenus,
@@ -393,6 +571,16 @@ class _GraphiquesCarouselState extends State<GraphiquesCarousel> {
                         depenses: widget.depenses,
                         revenus: widget.revenus,
                         afficherDepenses: false,
+                      ),
+                      GraphiqueBarres(
+                        depenses: widget.depenses,
+                        revenus: widget.revenus,
+                      ),
+                      GraphiqueLigne(
+                        depenses: widget.depenses,
+                        revenus: widget.revenus,
+                        periode: widget.periode,
+                        transactions: widget.transactions,
                       ),
                     ],
                   ),

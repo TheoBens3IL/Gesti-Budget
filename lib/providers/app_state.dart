@@ -150,28 +150,41 @@ class AppState extends ChangeNotifier {
   }
 
   // Obtenir les transactions par période ET par compte
-  List<Transaction> getTransactionsByPeriod(String period, {String? compte}) {
+  List<Transaction> getTransactionsByPeriod(String period, {String? compte, int offset = 0}) {
     final now = DateTime.now();
     DateTime startDate;
+    DateTime endDate;
 
     switch (period) {
       case "Jour":
-        startDate = DateTime(now.year, now.month, now.day);
+        final targetDay = DateTime(now.year, now.month, now.day).add(Duration(days: offset));
+        startDate = DateTime(targetDay.year, targetDay.month, targetDay.day);
+        endDate = startDate.add(Duration(days: 1));
         break;
       case "Semaine":
-        startDate = now.subtract(Duration(days: 7));
+        final targetDate = now.add(Duration(days: offset * 7));
+        startDate = targetDate.subtract(Duration(days: 7));
+        endDate = targetDate;
         break;
       case "Mois":
-        startDate = DateTime(now.year, now.month, 1);
+        final targetMonth = DateTime(now.year, now.month + offset, 1);
+        startDate = DateTime(targetMonth.year, targetMonth.month, 1);
+        endDate = DateTime(targetMonth.year, targetMonth.month + 1, 1);
         break;
       case "Année":
-        startDate = DateTime(now.year, 1, 1);
+        startDate = DateTime(now.year + offset, 1, 1);
+        endDate = DateTime(now.year + offset + 1, 1, 1);
         break;
       default:
-        startDate = DateTime(now.year, now.month, 1);
+        final targetMonth = DateTime(now.year, now.month + offset, 1);
+        startDate = DateTime(targetMonth.year, targetMonth.month, 1);
+        endDate = DateTime(targetMonth.year, targetMonth.month + 1, 1);
     }
 
-    var filtered = _transactions.where((t) => t.date.isAfter(startDate));
+    var filtered = _transactions.where((t) => 
+      (t.date.isAfter(startDate) || t.date.isAtSameMomentAs(startDate)) && 
+      t.date.isBefore(endDate)
+    );
     
     // Filtrer par compte si spécifié
     if (compte != null) {
@@ -185,8 +198,8 @@ class AppState extends ChangeNotifier {
   }
 
   // Obtenir les dépenses par catégorie (avec filtre compte optionnel)
-  Map<String, double> getDepensesParCategorie(String period, {String? compte}) {
-    final transactions = getTransactionsByPeriod(period, compte: compte);
+  Map<String, double> getDepensesParCategorie(String period, {String? compte, int offset = 0}) {
+    final transactions = getTransactionsByPeriod(period, compte: compte, offset: offset);
     final Map<String, double> categories = {};
 
     for (var transaction in transactions) {
@@ -200,8 +213,8 @@ class AppState extends ChangeNotifier {
   }
 
   // Obtenir les revenus par catégorie (avec filtre compte optionnel)
-  Map<String, double> getRevenusParCategorie(String period, {String? compte}) {
-    final transactions = getTransactionsByPeriod(period, compte: compte);
+  Map<String, double> getRevenusParCategorie(String period, {String? compte, int offset = 0}) {
+    final transactions = getTransactionsByPeriod(period, compte: compte, offset: offset);
     final Map<String, double> categories = {};
 
     for (var transaction in transactions) {
@@ -215,15 +228,15 @@ class AppState extends ChangeNotifier {
   }
 
   // Obtenir le total des dépenses (avec filtre compte optionnel)
-  double getTotalDepenses(String period, {String? compte}) {
-    return getTransactionsByPeriod(period, compte: compte)
+  double getTotalDepenses(String period, {String? compte, int offset = 0}) {
+    return getTransactionsByPeriod(period, compte: compte, offset: offset)
         .where((t) => t.type == "Dépense")
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
   // Obtenir le total des revenus (avec filtre compte optionnel)
-  double getTotalRevenus(String period, {String? compte}) {
-    return getTransactionsByPeriod(period, compte: compte)
+  double getTotalRevenus(String period, {String? compte, int offset = 0}) {
+    return getTransactionsByPeriod(period, compte: compte, offset: offset)
         .where((t) => t.type == "Revenu")
         .fold(0.0, (sum, t) => sum + t.amount);
   }
