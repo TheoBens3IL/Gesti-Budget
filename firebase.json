@@ -1,1 +1,31 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"gesti-budget-theob","appId":"1:148152873954:android:4df43b904bc38dfc22ffbb","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"gesti-budget-theob","configurations":{"android":"1:148152873954:android:4df43b904bc38dfc22ffbb","ios":"1:148152873954:ios:58c3c8a1543abedf22ffbb","macos":"1:148152873954:ios:58c3c8a1543abedf22ffbb","web":"1:148152873954:web:5cac8a3d4724957522ffbb","windows":"1:148152873954:web:b96f435b098b7a4222ffbb"}}}}}}
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "eur3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "gesti-budget-theob",
+          "appId": "1:148152873954:android:4df43b904bc38dfc22ffbb",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "gesti-budget-theob",
+          "configurations": {
+            "android": "1:148152873954:android:4df43b904bc38dfc22ffbb",
+            "ios": "1:148152873954:ios:58c3c8a1543abedf22ffbb",
+            "macos": "1:148152873954:ios:58c3c8a1543abedf22ffbb",
+            "web": "1:148152873954:web:5cac8a3d4724957522ffbb",
+            "windows": "1:148152873954:web:b96f435b098b7a4222ffbb"
+          }
+        }
+      }
+    }
+  }
+}

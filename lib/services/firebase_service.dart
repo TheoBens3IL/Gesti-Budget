@@ -146,7 +146,6 @@ class FirebaseService {
       final userCredential = await _auth.signInAnonymously();
       return userCredential.user;
     } catch (e) {
-      print('Erreur de connexion anonyme: $e');
       return null;
     }
   }
@@ -167,7 +166,6 @@ class FirebaseService {
       
       return userCredential.user;
     } catch (e) {
-      print('Erreur d\'inscription: $e');
       return null;
     }
   }
@@ -181,7 +179,6 @@ class FirebaseService {
       );
       return userCredential.user;
     } catch (e) {
-      print('Erreur de connexion: $e');
       return null;
     }
   }

@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -23,6 +25,7 @@ void main() async {
   runApp(const GestiBudgetApp());
 }
 
+// ===== SatelessWidget principal de l'application permettant de gérer l'authentification ===== //
 class GestiBudgetApp extends StatelessWidget {
   const GestiBudgetApp({super.key});
 
@@ -328,7 +331,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               });
                             },
                           );
-                        }).toList(),
+                        }),
                         Divider(color: Colors.white.withOpacity(0.2)),
                         ListTile(
                           leading: Icon(Icons.logout, color: Colors.redAccent),
@@ -423,7 +426,9 @@ class _MyHomePageState extends State<MyHomePage> {
                           );
                           if (result != null && mounted) {
                             final transaction = Transaction.fromMap(result);
-                            Provider.of<AppState>(context, listen: false).ajouterTransaction(transaction);
+                            if (mounted) {
+                              Provider.of<AppState>(context, listen: false).ajouterTransaction(transaction);
+                            }
                           }
                         },
                         icon: Icon(Icons.add),

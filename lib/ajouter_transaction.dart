@@ -342,8 +342,7 @@ class _AjouterTransactionPageState extends State<AjouterTransactionPage> {
                                     onPrimary: Color(0xFF1A0F2E),
                                     surface: Color(0xFF1A0F2E),
                                     onSurface: Colors.white,
-                                  ),
-                                  dialogBackgroundColor: Color(0xFF1A0F2E),
+                                  ), dialogTheme: DialogThemeData(backgroundColor: Color(0xFF1A0F2E)),
                                 ),
                                 child: child!,
                               );

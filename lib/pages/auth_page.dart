@@ -71,6 +71,7 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+// ===== Interface utilisateur de la page d'authentification ===== //
   @override
   Widget build(BuildContext context) {
     return Scaffold(

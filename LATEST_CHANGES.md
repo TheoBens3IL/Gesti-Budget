@@ -1,3 +1,7 @@
+**v0.9.1**
+- Firebase rules for security
+
+**v0.9.0**
 - Ajout fonctionnalité pour pouvoir selectionner une date dans l'ajout de transaction (et de pouvoir la modifier lors de la modification de la trnasaction)
 
 - Ajout fonctionnalité pour pouvoir revenir en arrière dans les mois pour les graphes et les dépenses/revenus par catégories (page d'accueil)
