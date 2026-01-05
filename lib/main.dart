@@ -12,6 +12,7 @@ import 'liste_transactions.dart';
 import 'utils/dialogs.dart';
 import 'convertisseur_devises.dart';
 import 'widgets/graphiques.dart';
+import 'widgets/categories_list.dart';
 import 'pages/auth_page.dart';
 
 void main() async {
@@ -108,6 +109,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _initialized = false;
   int periodOffset = 0; // 0 = période actuelle, -1 = période précédente, etc.
 
+  // Fonction pour obtenir la couleur d'une catégorie
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -370,7 +372,7 @@ class _MyHomePageState extends State<MyHomePage> {
             padding: const EdgeInsets.all(8.0),
             child: Column(
               children: [
-                // Commenté - Sélecteur Dépense/Revenu
+                // Sélecteur Dépense/Revenu
                 // Container(
                 //   decoration: BoxDecoration(
                 //     color: Colors.white.withValues(alpha: 0.1),
@@ -473,248 +475,24 @@ class _MyHomePageState extends State<MyHomePage> {
                       // Colonne Dépenses
                       Flexible(
                         flex: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                          ),
-                          child: Column(
-                            children: [
-                              // En-tête Dépenses
-                              Container(
-                                padding: EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    topRight: Radius.circular(16),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Dépenses",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Text(
-                                      "€${totalDepenses.toStringAsFixed(2)}",
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Liste des catégories de dépenses
-                              Expanded(
-                                child: categoriesDepenses.isEmpty
-                                    ? Center(
-                                        child: Text(
-                                          "Aucune dépense",
-                                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                                        ),
-                                      )
-                                    : ListView(
-                                        padding: EdgeInsets.all(8),
-                                        children: categoriesDepenses.entries.map((entry) {
-                                          double percent = totalDepenses == 0 
-                                              ? 0 
-                                              : (entry.value / totalDepenses) * 100;
-                                          
-                                          // Utiliser la même couleur que le graphique
-                                          final allCategories = categoriesDepenses.keys.toList();
-                                          final categoryColor = getCategoryColor(entry.key, allCategories, isRevenu: false);
-                                          
-                                          return Card(
-                                            color: Colors.white.withValues(alpha: 0.08),
-                                            margin: EdgeInsets.symmetric(vertical: 2),
-                                            child: Padding(
-                                              padding: EdgeInsets.all(8),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                    children: [
-                                                      Row(
-                                                        children: [
-                                                          Container(
-                                                            width: 10,
-                                                            height: 10,
-                                                            decoration: BoxDecoration(
-                                                              color: categoryColor,
-                                                              shape: BoxShape.circle,
-                                                            ),
-                                                          ),
-                                                          SizedBox(width: 6),
-                                                          Text(
-                                                            entry.key,
-                                                            style: TextStyle(
-                                                              color: Colors.white,
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      Text(
-                                                        "${percent.toStringAsFixed(0)}%",
-                                                        style: TextStyle(
-                                                          color: Colors.white70,
-                                                          fontSize: 11,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    "€${entry.value.toStringAsFixed(2)}",
-                                                    style: TextStyle(
-                                                      color: categoryColor,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                              ),
-                            ],
-                          ),
+                        child: CategoriesList(
+                          titre: "Dépenses",
+                          couleur: Colors.red,
+                          categories: categoriesDepenses,
+                          total: totalDepenses,
+                          isRevenu: false,
                         ),
                       ),
                       SizedBox(width: 4),
                       // Colonne Revenus
                       Flexible(
                         flex: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                          ),
-                          child: Column(
-                            children: [
-                              // En-tête Revenus
-                              Container(
-                                padding: EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    topRight: Radius.circular(16),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Revenus",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Text(
-                                      "€${totalRevenus.toStringAsFixed(2)}",
-                                      style: TextStyle(
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Liste des catégories de revenus
-                              Expanded(
-                                child: categoriesRevenus.isEmpty
-                                    ? Center(
-                                        child: Text(
-                                          "Aucun revenu",
-                                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                                        ),
-                                      )
-                                    : ListView(
-                                        padding: EdgeInsets.all(8),
-                                        children: categoriesRevenus.entries.map((entry) {
-                                          double percent = totalRevenus == 0 
-                                              ? 0 
-                                              : (entry.value / totalRevenus) * 100;
-                                          
-                                          // Utiliser la même couleur que le graphique
-                                          final allCategories = categoriesRevenus.keys.toList();
-                                          final categoryColor = getCategoryColor(entry.key, allCategories, isRevenu: true);
-                                          
-                                          return Card(
-                                            color: Colors.white.withValues(alpha: 0.08),
-                                            margin: EdgeInsets.symmetric(vertical: 2),
-                                            child: Padding(
-                                              padding: EdgeInsets.all(8),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                    children: [
-                                                      Row(
-                                                        children: [
-                                                          Container(
-                                                            width: 10,
-                                                            height: 10,
-                                                            decoration: BoxDecoration(
-                                                              color: categoryColor,
-                                                              shape: BoxShape.circle,
-                                                            ),
-                                                          ),
-                                                          SizedBox(width: 6),
-                                                          Text(
-                                                            entry.key,
-                                                            style: TextStyle(
-                                                              color: Colors.white,
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      Text(
-                                                        "${percent.toStringAsFixed(0)}%",
-                                                        style: TextStyle(
-                                                          color: Colors.white70,
-                                                          fontSize: 11,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    "€${entry.value.toStringAsFixed(2)}",
-                                                    style: TextStyle(
-                                                      color: categoryColor,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                              ),
-                            ],
-                          ),
+                        child: CategoriesList(
+                          titre: "Revenus",
+                          couleur: Colors.green,
+                          categories: categoriesRevenus,
+                          total: totalRevenus,
+                          isRevenu: true,
                         ),
                       ),
                     ],

@@ -3,6 +3,7 @@ import 'dart:async';
 import '../models/transaction.dart';
 import '../services/firebase_service.dart';
 
+// Provider pour gérer l'état global de l'application : comptes et transactions
 class AppState extends ChangeNotifier {
   // Liste des transactions (cache local)
   List<Transaction> _transactions = [];
